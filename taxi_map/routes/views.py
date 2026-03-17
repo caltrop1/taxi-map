@@ -76,6 +76,11 @@ def seed_sample_data():
             step_type=TravelStep.STEP_TYPE_TAXI,
             taxi_route=taxi2,
         )
+    else:
+        step0 = path1.steps.filter(order=0, step_type=TravelStep.STEP_TYPE_TAXI).first()
+        if step0 and not step0.taxi_route:
+            step0.taxi_route = taxi1
+            step0.save()
 
     route1, _ = Route.objects.get_or_create(
         name="Bole to Merkato",
