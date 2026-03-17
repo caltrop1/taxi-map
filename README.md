@@ -3,11 +3,13 @@
 A Django project for Addis Ababa minibus taxi navigation with route search and map display.
 
 ## Features
+
 - Interactive Leaflet map
 - Search start/destination and compute recommended routes
 - Static assets and custom UI
 
 ## Run locally
+
 1. Create and activate virtualenv:
    ```bash
    python3 -m venv venv
@@ -29,5 +31,6 @@ A Django project for Addis Ababa minibus taxi navigation with route search and m
 5. Open `http://127.0.0.1:8000/`.
 
 ## Notes
+
 - Favicon and logo are served from `templates/routes/favicon.png` via Django static.
 - Update `taxis`, `routes` logic in `routes/views.py` and models as needed.
