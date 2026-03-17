@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    {% load static %}
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Addis Ababa Minibus Taxi Navigation System</title>
+    <link rel="icon" type="image/png" href="{% static 'favicon.png' %}" />
+    <link rel="shortcut icon" href="{% static 'logo.png' %}" />
+    <link rel="apple-touch-icon" href="{% static 'logo.png' %}" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="/static/routes/style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="topbar-brand">
+          <img
+            class="brand-logo"
+            src="{% static 'logo.png' %}"
+            alt="Taxi map logo"
+          />
+          <div>
+            <h1>Addis Ababa Minibus Taxi Navigation</h1>
+            <p>Find routes, stops, fares, and recommended transfers.</p>
+          </div>
+        </div>
+      </header>
+
+      <section class="search-card">
+        <form id="route-search-form" class="search-form">
+          <div class="input-row">
+            <label for="start">Starting Location</label>
+            <input
+              id="start"
+              name="start"
+              type="text"
+              placeholder="e.g. Bole"
+              required
+            />
+          </div>
+          <div class="input-row">
+            <label for="destination">Destination</label>
+            <input
+              id="destination"
+              name="destination"
+              type="text"
+              placeholder="e.g. Merkato"
+              required
+            />
+          </div>
+          <button type="submit">Find Best Route</button>
+        </form>
+        <div id="route-result" class="route-result"></div>
+      </section>
+
+      <section class="map-card">
+        <div id="map" class="map"></div>
+        <div id="map-error" class="map-error"></div>
+      </section>
+
+      <footer class="footer">
+        <small
+          >Designed for fast mobile use in Addis Ababa. Works in modern
+          browsers.</small
+        >
+      </footer>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/static/routes/map.js"></script>
+  </body>
+</html>
