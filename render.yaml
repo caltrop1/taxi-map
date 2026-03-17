@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: taxi-map-web
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn taxi_map.wsgi:application --bind 0.0.0.0:$PORT"
+    envVars:
+      - key: DJANGO_SECRET_KEY
+        value: "django-insecure-replace-this-with-random"
+      - key: DJANGO_DEBUG
+        value: "False"
