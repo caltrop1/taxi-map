@@ -203,6 +203,29 @@ def route_search(request):
             {"error": "Please provide both start and destination names."}, status=400
         )
 
+    taxi_route = TaxiRoute.objects.filter(
+        start_location__name__iexact=start_name,
+        end_location__name__iexact=dest_name,
+    ).first()
+    if taxi_route:
+        response = {
+            "path": taxi_route.name,
+            "start": taxi_route.start_location.name,
+            "end": taxi_route.end_location.name,
+            "total_fare": float(taxi_route.estimated_fare),
+            "steps": [
+                {
+                    "type": "taxi",
+                    "route": taxi_route.name,
+                    "from": taxi_route.start_location.name,
+                    "to": taxi_route.end_location.name,
+                    "fare": float(taxi_route.estimated_fare),
+                    "polyline": taxi_route.get_polyline(),
+                }
+            ],
+        }
+        return JsonResponse(response)
+
     travel_paths = TravelPath.objects.filter(
         start_location__name__icontains=start_name,
         end_location__name__icontains=dest_name,
@@ -223,11 +246,18 @@ def route_search(request):
                     }
                 )
             else:
+                walk_coords = None
+                if step.from_location and step.to_location:
+                    walk_coords = [
+                        [step.from_location.latitude, step.from_location.longitude],
+                        [step.to_location.latitude, step.to_location.longitude],
+                    ]
                 steps.append(
                     {
                         "type": "walk",
                         "from": step.from_location.name if step.from_location else "",
                         "to": step.to_location.name if step.to_location else "",
+                        "coordinates": walk_coords,
                     }
                 )
 

@@ -1,142 +1,209 @@
 let map;
+let routeLayers = [];
+let locationLookup = {};
 
 function initMap() {
-    const mapElement = document.getElementById('map');
-    if (!mapElement) {
-        console.error('Map element not found');
-        return;
-    }
-    map = L.map('map').setView([9.02, 38.75], 13);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    }).addTo(map);
-    console.log('Leaflet map initialized successfully');
+  const mapElement = document.getElementById('map');
+  if (!mapElement) {
+    console.error('Map element not found');
+    return;
+  }
+
+  map = L.map('map').setView([9.02, 38.75], 13);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions">CARTO</a>',
+  }).addTo(map);
+
+  console.log('Leaflet map initialized successfully');
 }
 
-const routeColors = ['#006dff', '#ff6d00', '#05944d', '#b2095a'];
-let mapRoutes = [];
-let stopMarkers = [];
+function clearRouteLayers() {
+  routeLayers.forEach((layer) => map.removeLayer(layer));
+  routeLayers = [];
+}
 
-function renderMap(data) {
-    mapRoutes.forEach((line) => map.removeLayer(line));
-    stopMarkers.forEach((m) => map.removeLayer(m));
-    mapRoutes = [];
-    stopMarkers = [];
+function drawRoute(steps) {
+  clearRouteLayers();
+  if (!steps || !steps.length) {
+    return;
+  }
 
-    data.taxi_routes.forEach((route, i) => {
-        const poly = L.polyline(route.polyline, {
-            color: routeColors[i % routeColors.length],
-            weight: 4,
-            opacity: 0.9,
-        }).addTo(map);
-        mapRoutes.push(poly);
-        poly.bindPopup(`<strong>${route.name}</strong><br>${route.start} → ${route.end}<br>Fare ETB ${route.fare}`);
-    });
+  const allBounds = [];
 
-    data.locations.forEach((loc) => {
-        const marker = L.circleMarker([loc.latitude, loc.longitude], {
-            radius: 6,
-            color: '#2d2d7c',
-            fillColor: '#8cb1ff',
-            fillOpacity: 0.9,
-        }).addTo(map);
-        marker.bindPopup(`<strong>${loc.name}</strong>`);
-        stopMarkers.push(marker);
-    });
-
-    if (data.locations.length > 0) {
-        const latlngs = data.locations.map((stop) => [stop.latitude, stop.longitude]);
-        map.fitBounds(latlngs, { padding: [20, 20] });
+  steps.forEach((step) => {
+    if (step.type === 'taxi') {
+      const coordinates = step.polyline || step.coordinates;
+      if (!coordinates || coordinates.length < 2) {
+        return;
+      }
+      const polyline = L.polyline(coordinates, {
+        color: '#006dff',
+        weight: 5,
+        opacity: 0.95,
+      }).addTo(map);
+      polyline.bindPopup(`${step.route} (${step.from} → ${step.to})`);
+      routeLayers.push(polyline);
+      allBounds.push(...polyline.getLatLngs());
+    } else if (step.type === 'walk') {
+      let coordinates = step.coordinates;
+      if (!coordinates && step.from && step.to) {
+        const fromCoord = locationLookup[step.from];
+        const toCoord = locationLookup[step.to];
+        if (fromCoord && toCoord) {
+          coordinates = [fromCoord, toCoord];
+        }
+      }
+      if (!coordinates || coordinates.length < 2) {
+        return;
+      }
+      const polyline = L.polyline(coordinates, {
+        color: '#6f6f6f',
+        weight: 3,
+        opacity: 0.8,
+        dashArray: '8, 6',
+      }).addTo(map);
+      polyline.bindPopup(`Walk: ${step.from} → ${step.to}`);
+      routeLayers.push(polyline);
+      allBounds.push(...polyline.getLatLngs());
     }
+  });
+
+  if (allBounds.length > 0) {
+    map.fitBounds(allBounds, { padding: [20, 20] });
+  }
+}
+
+function addLocationMarkers(locations) {
+  locationLookup = {};
+  locations.forEach((loc) => {
+    locationLookup[loc.name] = [loc.latitude, loc.longitude];
+    L.circleMarker([loc.latitude, loc.longitude], {
+      radius: 4,
+      color: '#1f456e',
+      fillColor: '#7ab4ff',
+      fillOpacity: 0.9,
+    })
+      .bindPopup(`<strong>${loc.name}</strong>`)
+      .addTo(map);
+  });
 }
 
 async function loadData() {
-    try {
-        const res = await fetch('/api/map-data/');
-        if (!res.ok) {
-            throw new Error(`Map API failed with status ${res.status}`);
-        }
-        const data = await res.json();
-        renderMap(data);
-    } catch (err) {
-        console.error('Map data loading failed', err);
-        const mapError = document.getElementById('map-error');
-        if (mapError) {
-            mapError.textContent = 'Could not load route data. Try refreshing.';
-        }
+  try {
+    const res = await fetch('/api/map-data/');
+    if (!res.ok) {
+      throw new Error('Failed to load map data');
     }
+    const data = await res.json();
+    addLocationMarkers(data.locations);
+  } catch (err) {
+    console.error('Map data loading failed', err);
+    const mapError = document.getElementById('map-error');
+    if (mapError) {
+      mapError.textContent = 'Could not load location data.';
+    }
+  }
 }
 
 function showCurrentPosition() {
-    if (!navigator.geolocation) {
-        return;
+  if (!navigator.geolocation) {
+    console.warn('Geolocation not available in browser.');
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const coords = [pos.coords.latitude, pos.coords.longitude];
+      const marker = L.marker(coords, {
+        title: 'Your location',
+      }).addTo(map);
+      marker.bindPopup('Your current location').openPopup();
+      map.setView(coords, 14);
+    },
+    (err) => {
+      console.error('Geolocation error', err);
+      const mapError = document.getElementById('map-error');
+      if (mapError) {
+        mapError.textContent =
+          'Could not get your location. Please allow location access or try again.';
+      }
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
     }
-    navigator.geolocation.getCurrentPosition((pos) => {
-        const marker = L.marker([pos.coords.latitude, pos.coords.longitude], {
-            title: 'Your location',
-        }).addTo(map);
-        marker.bindPopup('You are here').openPopup();
-        map.setView([pos.coords.latitude, pos.coords.longitude], 14);
-    }, () => {
-        // ignore permission denial
-    });
+  );
 }
 
 async function setupRouteSearch() {
-    const form = document.getElementById('route-search-form');
-    const result = document.getElementById('route-result');
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const start = form.start.value.trim();
-        const destination = form.destination.value.trim();
-        if (!start || !destination) {
-            result.textContent = 'Enter both starting location and destination.';
-            return;
-        }
+  const form = document.getElementById('route-search-form');
+  const result = document.getElementById('route-result');
 
-        result.textContent = 'Searching route...';
-        try {
-            const searchUrl = `/route-search/?start=${encodeURIComponent(start)}&destination=${encodeURIComponent(destination)}`;
-            const res = await fetch(searchUrl);
-            const payload = await res.json();
-            if (!res.ok) {
-                result.textContent = payload.error || 'Could not find a route. Try another stop.';
-                return;
-            }
-            if (payload.path) {
-            let html = `<strong>${payload.path}</strong><br>${payload.start} → ${payload.end}<br>Fare estimate ETB ${payload.total_fare.toFixed(2)}<br><strong>Steps:</strong><ol>`;
-            payload.steps.forEach((step) => {
-                if (step.type === 'taxi') {
-                    html += `<li>Taxi: ${step.route} (${step.from} → ${step.to}, ETB ${step.fare.toFixed(2)})</li>`;
-                } else {
-                    html += `<li>Walk: ${step.from} → ${step.to}</li>`;
-                }
-            });
-            html += '</ol>';
-            result.innerHTML = html;
-        } else {
-            const transfer = payload.transfer?.length ? `Transfer at ${payload.transfer.join(', ')}.` : '';
-            result.innerHTML = `<strong>Best Route:</strong> ${payload.route} <br /><strong>Board:</strong> ${payload.board} <br /><strong>Exit:</strong> ${payload.exit} <br /><strong>Fare:</strong> ETB ${payload.fare.toFixed(2)} <br /><strong>Steps:</strong> ${payload.steps.join(' → ')} <br />${transfer}`;
-        }
-        } catch (err) {
-            console.error(err);
-            result.textContent = 'Unexpected server error. Please refresh.';
-        }
-    });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const start = form.querySelector('[name="start"]').value.trim();
+    const destination = form.querySelector('[name="destination"]').value.trim();
+
+    if (!start || !destination) {
+      result.textContent = 'Enter both starting location and destination.';
+      return;
+    }
+
+    result.textContent = 'Searching route...';
+    try {
+      const searchUrl = `/route-search/?start=${encodeURIComponent(
+        start
+      )}&destination=${encodeURIComponent(destination)}`;
+      const res = await fetch(searchUrl);
+      const payload = await res.json();
+
+      if (!res.ok) {
+        result.textContent = payload.error || 'Could not find a route.';
+        clearRouteLayers();
+        return;
+      }
+
+      if (payload.steps) {
+        let html = `<strong>${payload.path || 'Recommended path'}</strong><br>${
+          payload.start || start
+        } → ${payload.end || destination} <br>Fare: ETB ${(
+          payload.total_fare || payload.fare || 0
+        ).toFixed(2)}<br><strong>Steps:</strong><ol>`;
+        payload.steps.forEach((step) => {
+          if (step.type === 'taxi') {
+            html += `<li>Taxi: ${step.route} (${step.from} → ${step.to}, ETB ${step.fare?.toFixed(2) || 0})</li>`;
+          } else {
+            html += `<li>Walk: ${step.from} → ${step.to}</li>`;
+          }
+        });
+        html += '</ol>';
+        result.innerHTML = html;
+        drawRoute(payload.steps);
+      } else {
+        result.textContent = payload.route || 'Route found.';
+      }
+    } catch (err) {
+      console.error(err);
+      result.textContent = 'Unexpected server error. Please refresh.';
+      clearRouteLayers();
+    }
+  });
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
-    try {
-        initMap();
-        setupRouteSearch();
-        await loadData();
-        showCurrentPosition();
-    } catch (err) {
-        console.error('Unexpected map startup error', err);
-        const mapError = document.getElementById('map-error');
-        if (mapError) {
-            mapError.textContent = 'Map failed to initialize. Check browser console for details.';
-        }
+  try {
+    initMap();
+    await loadData();
+    await setupRouteSearch();
+    showCurrentPosition();
+  } catch (err) {
+    console.error('Unexpected map startup error', err);
+    const mapError = document.getElementById('map-error');
+    if (mapError) {
+      mapError.textContent = 'Map failed to initialize. Check console for details.';
     }
+  }
 });
