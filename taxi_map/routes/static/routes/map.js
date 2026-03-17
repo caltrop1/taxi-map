@@ -34,8 +34,16 @@ function drawRoute(steps) {
 
   steps.forEach((step) => {
     if (step.type === 'taxi') {
-      const coordinates = step.polyline || step.coordinates;
+      let coordinates = step.polyline || step.coordinates;
       if (!coordinates || coordinates.length < 2) {
+        const fromCoord = locationLookup[step.from];
+        const toCoord = locationLookup[step.to];
+        if (fromCoord && toCoord) {
+          coordinates = [fromCoord, toCoord];
+        }
+      }
+      if (!coordinates || coordinates.length < 2) {
+        console.warn('Skipping taxi step due to invalid coordinates', step);
         return;
       }
       const polyline = L.polyline(coordinates, {
